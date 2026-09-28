@@ -85,7 +85,7 @@ describe('dedupe: link, do not duplicate', () => {
     expect(visa.tags).toEqual(['admin', 'radar'])
     expect(visa.dueDate).toBe(boardMod.localNoon('2027-03-14').getTime() / 1000 - 978307200)
     expect(visa.notes).toContain('☐ Passport — ~/H1 Documents')
-    expect(visa.priority).toBe('high')
+    expect(visa.priority).toBe('medium') // a linked card keeps the user's own priority
     // Dateless nags get tagged + checklist but no deadline
     const colo = p.newRoot.boards[0].columns[0].cards[0]
     expect(colo.dueDate).toBeUndefined()

@@ -53,3 +53,39 @@ function plistXml(root = board(), { encoding = 'string' } = {}) {
 }
 
 module.exports = { board, plistXml, U }
+
+/**
+ * Shaped like the REAL board's dry run (2026-09-28): lists/tasks, a
+ * `listId` back-reference on every card, per-card `storyId` sequence,
+ * `itemType` Story/Epic, priorities None/Critical/Medium/High, stored as <data>.
+ * Values are made up; only the shape is copied.
+ */
+function realShapeBoard() {
+  const L = { backlog: U(801), todo: U(802), prog: U(803), done: U(804) }
+  let n = 0
+  const task = (list, title, extra = {}) => ({
+    createdAt: 811046546.25, listId: L[list], itemType: 'Story', definitionOfDone: '',
+    storyId: `MFB-S-${String(++n).padStart(3, '0')}`, linkedStoryIds: [], assigneeIds: [],
+    title, tags: [], updatedAt: 812000000.5, priority: 'Medium', id: U(700 + n), notes: '', attachments: [], ...extra,
+  })
+  return {
+    boards: [{
+      id: U(800), name: 'My First Board', nextStoryNumber: 36,
+      lists: [
+        { id: L.backlog, title: 'Backlog', tasks: [
+          task('backlog', 'Visa Renewal', { itemType: 'Epic', storyId: 'MFB-E-005', priority: 'Critical', notes: 'Talk to HR' }),
+          task('backlog', 'Home Improvement', { definitionOfDone: 'Quotes from three contractors', priority: 'None' }),
+          task('backlog', 'Book Club Readings', { deadline: 826732800 }),
+        ] },
+        { id: L.todo, title: 'To Do', tasks: [
+          task('todo', 'Colonoscopy Appointment', { tags: ['Health'] }),
+          task('todo', 'Prostate Appointment', { tags: ['Health'] }),
+        ] },
+        { id: L.prog, title: 'In Progress', tasks: [task('prog', 'MDAA Slide Deck', { priority: 'High' })] },
+        { id: L.done, title: 'Done', tasks: [task('done', 'Clean Kitchen')] },
+      ],
+    }],
+  }
+}
+
+module.exports.realShapeBoard = realShapeBoard

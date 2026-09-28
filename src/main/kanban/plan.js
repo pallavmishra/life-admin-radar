@@ -50,6 +50,7 @@ function planPush(root, { requests, linkedCardIds = new Set(), boardName, overri
       } else {
         card[shape.layout.refKey] = shape.done.id
       }
+      if (shape.parentRefKey) card[shape.parentRefKey] = shape.done.id
       results.push({ ...base, action: 'move-to-done', cardId: idOf(card), cardTitle: card[k.title.key], fromList: from && from.title, list: shape.done.title, before, after: clone(card) })
       continue
     }
@@ -99,6 +100,13 @@ function planPush(root, { requests, linkedCardIds = new Set(), boardName, overri
 
   const inv = checkInvariants(root, next, { boardName, overrides, results })
   const issues = shape.issues.concat(inv.issues)
+  const creates = results.filter(r => r.action === 'create')
+  if (creates.length && shape.sequenceKeys.length) {
+    const eg = shape.sequenceKeys.map(key => `${key} ${creates[0].after[key]}`).join(', ')
+    const counters = Object.entries(shape.boardFields).filter(([, v]) => typeof v === 'number').map(([key, v]) => `${key}=${v}`)
+    issues.push({ level: 'confirm', code: 'sequence-numbering', message: `New cards are numbered after the highest existing one (${eg}).` +
+      (counters.length ? ` The board also has number fields (${counters.join(', ')}) — if Kanban Board uses one as its own counter it could later reuse a number.` : '') })
+  }
   return {
     ok: !issues.some(i => i.level === 'blocking'),
     issues, results, newRoot: next, shape: summarize(shape), invariants: inv.facts,
@@ -156,6 +164,9 @@ function summarize(shape) {
     keys: Object.fromEntries(Object.entries(shape.keys).map(([n, v]) => [n, `${v.key ?? '—'} (${v.source})`])),
     dateFormat: shape.dateFormat,
     idStyle: shape.idStyle,
+    parentRefKey: shape.parentRefKey,
+    fieldProfile: shape.fieldProfile,
+    boardFields: shape.boardFields,
     priority: shape.priority,
     tagStyle: shape.tagStyle,
     cards: shape.allCards.map(c => ({ id: String(c[shape.keys.id.key]), title: String(c[shape.keys.title.key] || '') })),

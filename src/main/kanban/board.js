@@ -266,11 +266,78 @@ function analyze(root, { boardName = 'My First Board', overrides = {} } = {}) {
   walk(root)
   if (unsafe) add('blocking', 'unsafe-integers', `${unsafe} number(s) on the board are too large to round-trip exactly — refusing to rewrite it.`)
 
+  // ── fields the planner must keep consistent (seen on real boards) ──
+  const known = new Set(Object.values(keys).map(v => v.key).filter(Boolean))
+
+  // A card-level back-reference to its own list (e.g. `listId`) in a nested
+  // board: every card's value equals the id of the list that holds it. It
+  // must follow the card when the card moves, or the app sees a card that
+  // claims to live somewhere else.
+  let parentRefKey = null
+  if (layout.mode === 'nested' && sample.length && lists.every(l => l.id != null)) {
+    const cands = Object.keys(sample[0]).filter(key => !known.has(key))
+    parentRefKey = cands.find(key => lists.every(l => cardsOf(l).every(c => c[key] != null && String(c[key]) === String(l.id)))) || null
+  }
+  if (parentRefKey) known.add(parentRefKey)
+
+  // Per-field profile, so a cloned card gets fresh values where the board's
+  // values are per-card (story numbers, free text, secondary ids) and keeps
+  // them where they are shared settings (item type, board id).
+  const fieldProfile = {}
+  for (const key of new Set(sample.flatMap(c => Object.keys(c)))) {
+    if (known.has(key)) continue
+    const vals = sample.map(c => c[key]).filter(v => typeof v === 'string')
+    if (vals.length < 2) continue
+    const distinct = new Set(vals)
+    const unique = distinct.size === vals.length
+    if (unique && vals.every(v => UUID_RE.test(v))) fieldProfile[key] = 'uuid'
+    else if (unique && vals.every(v => /^(.*?)(\d+)$/.test(v))) fieldProfile[key] = 'sequence'
+    else if (distinct.size > 10 || distinct.size / vals.length > 0.5) fieldProfile[key] = 'text'
+    else fieldProfile[key] = 'enum'
+  }
+  const sequenceKeys = Object.keys(fieldProfile).filter(k2 => fieldProfile[k2] === 'sequence')
+
+  // The card new cards are cloned from: the most TYPICAL card (matching the
+  // board's most common value on the most shared-setting fields), so a new
+  // card is a Story like most, not an Epic like one.
+  const enumKeys = Object.keys(fieldProfile).filter(k2 => fieldProfile[k2] === 'enum').concat(keys.priority.key ? [keys.priority.key] : [])
+  const mode = {}
+  for (const key of enumKeys) {
+    const counts = new Map()
+    for (const c of sample) if (c[key] != null) counts.set(JSON.stringify(c[key]), (counts.get(JSON.stringify(c[key])) || 0) + 1)
+    mode[key] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+  }
+  const typicality = (c) => enumKeys.reduce((n, key) => n + (JSON.stringify(c[key]) === mode[key] ? 1 : 0), 0)
+  const pool = backlog && cardsOf(backlog).length ? cardsOf(backlog) : sample
+  const templateCard = pool.slice().sort((a, b) => typicality(b) - typicality(a))[0] || null
+
+  // Board-level fields (keys + scalar values only — never card content),
+  // so a dry run shows whether the app keeps its own counters.
+  const boardFields = {}
+  for (const [key, v] of Object.entries(board)) {
+    if (key === layout.listsKey || (layout.mode === 'flat' && key === layout.cardsKey)) continue
+    boardFields[key] = Array.isArray(v) ? `array(${v.length})` : isObj(v) ? 'object' : typeof v === 'number' || typeof v === 'boolean' ? v : typeof v
+  }
+
   return {
     ok: !issues.some(i => i.level === 'blocking'),
     issues, board, path, layout, lists, cardsOf, allCards, backlog, done, keys,
     dateFormat, idStyle, priority, tagStyle, tagTemplate,
+    parentRefKey, fieldProfile, sequenceKeys, templateCard, boardFields,
   }
+}
+
+/** Next value of a per-card sequence like "MFB-S-033": same prefix as `like`, max + 1. */
+function nextSequence(cards, key, like) {
+  const m = /^(.*?)(\d+)$/.exec(String(like))
+  const prefix = m ? m[1] : ''
+  const width = m ? m[2].length : 1
+  let max = 0
+  for (const c of cards) {
+    const mm = /^(.*?)(\d+)$/.exec(String(c[key] ?? ''))
+    if (mm && mm[1] === prefix) max = Math.max(max, Number(mm[2]))
+  }
+  return prefix + String(max + 1).padStart(width, '0')
 }
 
 // ── value encoders ─────────────────────────────────────────────────────────
@@ -316,7 +383,10 @@ const PRIO_SYNONYMS = {
 function priorityValue(shape, want) {
   if (shape.priority.mode === 'skip') return undefined
   if (shape.priority.mode === 'guess') return want
-  for (const syn of PRIO_SYNONYMS[want]) {
+  // Only the board's own vocabulary; if it has never shown a "low", fall
+  // back to its neutral values rather than inventing one.
+  const chain = { high: PRIO_SYNONYMS.high, medium: PRIO_SYNONYMS.medium, low: [...PRIO_SYNONYMS.low, 'none', ...PRIO_SYNONYMS.medium] }[want]
+  for (const syn of chain) {
     const hit = shape.priority.values.find(v => norm(v) === syn)
     if (hit != null) return hit
   }
@@ -364,10 +434,12 @@ function withTag(shape, tags) {
 }
 
 /** Apply radar fields onto a card object (mutates `card`). */
-function stampCard(shape, card, { item, checklist, priority, now }) {
+function stampCard(shape, card, { item, checklist, priority, now, setPriority = false }) {
   const k = shape.keys
   if (item.due_date) card[k.due.key] = encodeDate(localNoon(item.due_date), shape.dateFormat.format)
-  const pv = priorityValue(shape, priority)
+  // Priority is Radar's to set on cards it CREATES. On a card the user
+  // already had (a linked match), their priority stands.
+  const pv = setPriority ? priorityValue(shape, priority) : undefined
   if (pv !== undefined) card[k.priority.key] = pv
   if (shape.tagStyle !== 'skip') card[k.tags.key] = withTag(shape, card[k.tags.key])
   card[k.notes.key] = mergeNotes(card[k.notes.key], checklist)
@@ -385,13 +457,18 @@ function stampCard(shape, card, { item, checklist, priority, now }) {
  * would not.
  */
 function newCard(shape, { item, checklist, priority, now }) {
-  const template = shape.cardsOf(shape.backlog)[0] || shape.allCards[0]
+  const template = shape.templateCard || shape.cardsOf(shape.backlog)[0] || shape.allCards[0]
   const card = clone(template)
   const k = shape.keys
   for (const [key, v] of Object.entries(card)) {
     if (Array.isArray(v) && key !== k.tags.key) card[key] = []
     if (DONE_FLAG_KEYS.includes(key) && typeof v === 'boolean') card[key] = false
+    const prof = (shape.fieldProfile || {})[key]
+    if (prof === 'text' && typeof v === 'string') card[key] = ''
+    if (prof === 'uuid') card[key] = UUID_RE.test(v) && v === v.toUpperCase() ? crypto.randomUUID().toUpperCase() : crypto.randomUUID()
+    if (prof === 'sequence') card[key] = nextSequence(shape.allCards, key, v)
   }
+  if (shape.parentRefKey) card[shape.parentRefKey] = shape.backlog.id
   if (Array.isArray(card[k.tags.key])) card[k.tags.key] = []
   card[k.id.key] = newId(shape, shape.allCards)
   card[k.title.key] = item.title
@@ -399,11 +476,11 @@ function newCard(shape, { item, checklist, priority, now }) {
   if (!item.due_date) delete card[k.due.key]
   if (k.created.key && Object.prototype.hasOwnProperty.call(card, k.created.key)) card[k.created.key] = encodeDate(now, shape.dateFormat.format)
   if (shape.layout.mode === 'flat') card[shape.layout.refKey] = shape.backlog.id
-  return stampCard(shape, card, { item, checklist, priority, now })
+  return stampCard(shape, card, { item, checklist, priority, now, setPriority: true })
 }
 
 module.exports = {
   analyze, findBoard, detectDateFormat, detectIdStyle, encodeDate, localNoon,
-  mergeNotes, checklistBlock, stampCard, newCard, withTag, priorityValue,
+  mergeNotes, checklistBlock, stampCard, newCard, withTag, priorityValue, nextSequence,
   RADAR_BLOCK_START, RADAR_BLOCK_END, RADAR_TAG, DONE_FLAG_KEYS, APPLE_EPOCH_S, nameOf,
 }
