@@ -35,6 +35,8 @@ describe('real board shape (lists/tasks, listId, storyId)', () => {
     expect(c.definitionOfDone).toBe('')                    // template's free text not copied
     expect(c.priority).toBe('None')                        // board has no "Low"
     expect(c.linkedStoryIds).toEqual([])
+    expect(c).not.toHaveProperty('parentEpicId')            // optional link: never inherited from the example card
+    expect(c).not.toHaveProperty('deadline', 826732800)
     const ids = lists(p.newRoot).flatMap(l => l.tasks.map(t => t.storyId))
     expect(new Set(ids).size).toBe(ids.length)
     expect(p.issues.map(i => i.code)).toContain('sequence-numbering')

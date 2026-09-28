@@ -468,6 +468,14 @@ function newCard(shape, { item, checklist, priority, now }) {
     if (prof === 'uuid') card[key] = UUID_RE.test(v) && v === v.toUpperCase() ? crypto.randomUUID().toUpperCase() : crypto.randomUUID()
     if (prof === 'sequence') card[key] = nextSequence(shape.allCards, key, v)
   }
+  // A field some cards simply do not have is optional in the app's model,
+  // so leaving it out is always valid — and for links such as
+  // parentEpicId/parentFeatureId it is the only correct choice: a new card
+  // must not inherit the example card's epic.
+  for (const key of Object.keys(card)) {
+    if (Object.values(k).some(v => v.key === key) || key === shape.parentRefKey) continue
+    if (shape.allCards.some(c => !Object.prototype.hasOwnProperty.call(c, key))) delete card[key]
+  }
   if (shape.parentRefKey) card[shape.parentRefKey] = shape.backlog.id
   if (Array.isArray(card[k.tags.key])) card[k.tags.key] = []
   card[k.id.key] = newId(shape, shape.allCards)

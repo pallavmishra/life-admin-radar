@@ -74,8 +74,8 @@ function realShapeBoard() {
       lists: [
         { id: L.backlog, title: 'Backlog', tasks: [
           task('backlog', 'Visa Renewal', { itemType: 'Epic', storyId: 'MFB-E-005', priority: 'Critical', notes: 'Talk to HR' }),
-          task('backlog', 'Home Improvement', { definitionOfDone: 'Quotes from three contractors', priority: 'None' }),
-          task('backlog', 'Book Club Readings', { deadline: 826732800 }),
+          task('backlog', 'Home Improvement', { definitionOfDone: 'Quotes from three contractors', priority: 'None', parentEpicId: U(701) }),
+          task('backlog', 'Book Club Readings', { deadline: 826732800, parentEpicId: U(701) }),
         ] },
         { id: L.todo, title: 'To Do', tasks: [
           task('todo', 'Colonoscopy Appointment', { tags: ['Health'] }),
