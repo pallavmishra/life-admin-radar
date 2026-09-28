@@ -6,6 +6,7 @@
   "private": true,
   "main": "main.js",
   "scripts": {
+    "start": "vite build && electron .",
     "dev": "concurrently -k -n VITE,ELECTRON -c cyan,yellow \"vite\" \"wait-on http://localhost:5174 && VITE_DEV=true electron .\"",
     "build": "vite build && electron-builder --mac dmg zip",
     "build:renderer": "vite build",

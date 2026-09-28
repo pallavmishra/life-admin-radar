@@ -12,7 +12,8 @@ It tracks dates, lead times, and readiness for immigration, license and vehicle 
 
 ```bash
 npm install
-npm run dev            # Vite + Electron with hot reload
+npm start              # build the UI and open the app (simplest)
+npm run dev            # Vite + Electron with hot reload (for development)
 npm run build          # renderer + DMG and zipped .app in dist/installers (build on macOS)
 ```
 
