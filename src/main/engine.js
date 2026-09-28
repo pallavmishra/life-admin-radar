@@ -162,7 +162,11 @@ function createEngine({ store, notifier = null, kanban = null, log = () => {} })
   function kanbanCandidates(today, { includeSubscriptions = false } = {}) {
     const items = store.rawItems()
     const reminders = store.rawReminders()
-    return items.filter(i => (includeSubscriptions || i.kind !== 'subscription') &&
+    // Subscriptions auto-renew; keep/cancel happens in Radar, not on the
+    // board. Excluded by kind AND by category, so one added through quick
+    // add (a plain dated item filed under Subscriptions) stays off too.
+    const isSub = (i) => i.kind === 'subscription' || i.category === 'subscriptions'
+    return items.filter(i => (includeSubscriptions || !isSub(i)) &&
       inFirstReminderWindow(i, reminders, today))
   }
 

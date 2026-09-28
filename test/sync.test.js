@@ -163,3 +163,20 @@ describe('Kanban push end to end (against a temp copy)', () => {
     expect(info.root.boards[0].columns[0].cards[2].tags).toContain('radar')
   })
 })
+
+describe('subscriptions never go to the board (default)', () => {
+  it('excludes template subscriptions and quick-added items filed under Subscriptions', () => {
+    const t = setup()
+    const c = h.clockAt('2026-09-28')
+    for (const s of t.store.listItems().filter(i => i.kind === 'subscription')) t.store.updateItem(s.id, { due_date: '2026-10-02' }, c)
+    t.store.createItem({ title: 'Netflix renewal', category: 'subscriptions', due_date: '2026-10-03', reminders: [7] }, c)
+    t.sync.enqueueDue(c)
+    const titles = t.sync.pending().map(p => p.title)
+    expect(titles).not.toContain('Spotify Premium Duo')
+    expect(titles).not.toContain('Netflix renewal')
+    expect(titles).toContain('H-1B: I-94 expires')
+    t.store.saveSettings({ kanbanIncludeSubscriptions: '1' })
+    t.sync.enqueueDue(c)
+    expect(t.sync.pending().map(p => p.title)).toContain('Netflix renewal')
+  })
+})

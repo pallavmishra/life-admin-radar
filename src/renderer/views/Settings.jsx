@@ -59,7 +59,7 @@ export default function Settings({ toasts, refresh, version }) {
         </label>
         <label className="check">
           <input type="checkbox" checked={s.kanbanIncludeSubscriptions === '1'} onChange={e => save({ kanbanIncludeSubscriptions: e.target.checked ? '1' : '0' })} />
-          Include subscription renewals (off: keep/cancel happens here in Radar)
+          Include subscriptions (off: they auto-renew; keep/cancel happens here in Radar)
         </label>
         <details className="small">
           <summary>Advanced: board format overrides</summary>
