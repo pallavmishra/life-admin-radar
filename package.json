@@ -13,7 +13,8 @@
     "test:headless": "node test/headless/run-all.js",
     "test:all": "npm run test && npm run test:headless",
     "kanban:dry-run": "node scripts/kanban-dry-run.js",
-    "test:e2e": "node test/e2e/app.e2e.mjs"
+    "test:e2e": "node test/e2e/app.e2e.mjs",
+    "kanban:inspect": "node scripts/kanban-inspect.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
