@@ -70,6 +70,12 @@ function focusItem(itemId) {
 app.on('second-instance', () => focusItem(null))
 
 app.whenReady().then(() => {
+  // The packaged app gets its icon from the bundle (build/icon.png →
+  // icon.icns). `npm start`/`npm run dev` run inside Electron's own bundle,
+  // so set the Dock icon explicitly there too.
+  if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
+    try { app.dock.setIcon(path.join(__dirname, 'build', 'icon.png')) } catch (_) {}
+  }
   // Deny every permission request (camera, mic, geolocation, notifications
   // from the page itself — notifications come from main, not the renderer).
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false))
