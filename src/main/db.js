@@ -13,6 +13,7 @@
  */
 const Database = require('better-sqlite3')
 const { checkText } = require('../shared/privacy')
+const { normalizeUrl, parseCents } = require('../shared/money')
 const { CATEGORY_IDS, KINDS, CHANNELS, BILLING_CYCLES } = require('../shared/constants')
 const { isDayKey, addMonths, compareKeys } = require('../shared/dates')
 const { deriveStatus } = require('./status')
@@ -227,10 +228,12 @@ function createStore(db) {
     if (!s) return
     const cycle = s.billing_cycle || 'monthly'
     if (!BILLING_CYCLES.some(c => c.id === cycle)) throw new Error(`Unknown billing cycle: ${cycle}`)
-    const cost = s.cost_cents == null || s.cost_cents === '' ? null : Math.round(Number(s.cost_cents))
-    if (cost != null && (!Number.isFinite(cost) || cost < 0)) throw new Error('Cost must be a positive amount')
-    const url = String(s.cancel_url || '').trim()
-    if (url && !/^https:\/\//i.test(url)) throw new Error('Cancel URL must start with https://')
+    // cost_cents arrives already in cents (templates/UI parse "$69.99" with
+    // shared/money.js); anything else is a programming error, said plainly.
+    const cost = 'cost' in s ? parseCents(s.cost)
+      : s.cost_cents == null || s.cost_cents === '' ? null : Math.round(Number(s.cost_cents))
+    if (cost != null && (!Number.isFinite(cost) || cost < 0)) throw new Error('Cost should be an amount like 69.99')
+    const url = normalizeUrl(s.cancel_url)
     db.prepare(`INSERT INTO subscriptions (item_id, cost_cents, billing_cycle, cancel_url, via) VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(item_id) DO UPDATE SET cost_cents=excluded.cost_cents, billing_cycle=excluded.billing_cycle,
       cancel_url=excluded.cancel_url, via=excluded.via`)

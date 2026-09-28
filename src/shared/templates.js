@@ -6,6 +6,7 @@
  * the only thing it ever asks for is the one date (or nothing at all).
  */
 const { addDays, isDayKey } = require('./dates')
+const { parseCents } = require('./money')
 
 const TEMPLATES = [
   {
@@ -108,7 +109,7 @@ function instantiate(id, input = {}) {
   }
   if (t.kind === 'subscription') {
     draft.subscription = {
-      cost_cents: input.cost != null && input.cost !== '' ? Math.round(Number(input.cost) * 100) : null,
+      cost_cents: parseCents(input.cost),
       billing_cycle: input.billing_cycle || t.subscription.billing_cycle,
       cancel_url: input.cancel_url || '',
       via: input.via || '',

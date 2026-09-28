@@ -67,13 +67,13 @@ export default function TemplatePicker({ meta, today, onClose, onCreated, toasts
             )}
             {ASK[pick.id].sub && (
               <div className="field-grid three">
-                <label>Cost<input value={form.cost} onChange={set('cost')} placeholder="18.99" inputMode="decimal" /></label>
+                <label>Cost<input value={form.cost} onChange={set('cost')} placeholder="$18.99" inputMode="decimal" /></label>
                 <label>Cycle
                   <select value={form.billing_cycle} onChange={set('billing_cycle')}>
                     {meta.cycles.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                 </label>
-                <label>Cancel URL<input value={form.cancel_url} onChange={set('cancel_url')} placeholder="https://…" /></label>
+                <label>Cancel URL<input value={form.cancel_url} onChange={set('cancel_url')} placeholder="e.g. spotify.com/account" /></label>
               </div>
             )}
             {ASK[pick.id].date && (

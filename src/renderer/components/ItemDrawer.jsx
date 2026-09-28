@@ -180,7 +180,7 @@ function SubscriptionFields({ item, meta, run, onCancel }) {
       <div className="field-grid three">
         <label>Cost
           <input defaultValue={s.cost_cents == null ? '' : (s.cost_cents / 100).toFixed(2)} key={`c${s.cost_cents}`} placeholder="unknown" inputMode="decimal"
-            onBlur={e => { const v = e.target.value.trim(); save({ cost_cents: v === '' ? null : Math.round(parseFloat(v.replace(/[$,]/g, '')) * 100) }) }} />
+            onBlur={e => save({ cost: e.target.value })} />
         </label>
         <label>Cycle
           <select value={s.billing_cycle} onChange={e => save({ billing_cycle: e.target.value })}>
