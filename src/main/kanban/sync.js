@@ -245,6 +245,13 @@ function createKanbanSync({ store, engine, notifier = null, isRunning, converter
     return res
   }
 
+  /** The complete would-be plist (XML) for a previewed plan. Read-only. */
+  function planXml(planId) {
+    const p = plans.get(planId)
+    if (!p) throw new Error('That preview has expired')
+    return buildNewPlist(p.info, p.plan.newRoot).xml
+  }
+
   function unlink(itemId) {
     db.prepare('DELETE FROM kanban_links WHERE item_id = ?').run(itemId)
   }
@@ -253,7 +260,7 @@ function createKanbanSync({ store, engine, notifier = null, isRunning, converter
     db.prepare(`UPDATE kanban_queue SET status = 'cancelled' WHERE id = ? AND status = 'pending'`).run(queueId)
   }
 
-  return { enqueueDue, pending, history, preview, execute, autoPush, unlink, cancelQueued, plistPath, isRunning: safeRunning }
+  return { enqueueDue, pending, history, preview, execute, autoPush, planXml, unlink, cancelQueued, plistPath, isRunning: safeRunning }
 }
 
 module.exports = { createKanbanSync, hashChecklist }

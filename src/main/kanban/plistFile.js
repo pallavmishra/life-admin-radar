@@ -31,6 +31,11 @@ const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex')
 const PLUTIL = '/usr/bin/plutil'
 
 function defaultConverter() {
+  if (process.platform !== 'darwin') {
+    // No plutil/cfprefsd off macOS (tests, CI): XML plists only.
+    const no = () => { throw new Error('Binary plists need macOS (plutil)') }
+    return { toXml: no, toBinaryInPlace: no }
+  }
   return {
     toXml(file) { return execFileSync(PLUTIL, ['-convert', 'xml1', '-o', '-', file], { maxBuffer: 256 * 1024 * 1024 }).toString('utf8') },
     toBinaryInPlace(file) { execFileSync(PLUTIL, ['-convert', 'binary1', file]) },

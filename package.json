@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:headless": "node test/headless/run-all.js",
     "test:all": "npm run test && npm run test:headless",
-    "kanban:dry-run": "node scripts/kanban-dry-run.js"
+    "kanban:dry-run": "node scripts/kanban-dry-run.js",
+    "test:e2e": "node test/e2e/app.e2e.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
@@ -22,6 +23,7 @@
     "concurrently": "^8.2.2",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
+    "playwright-core": "1.56",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.3.1",
@@ -40,7 +42,8 @@
       "src/main/**/*",
       "src/shared/**/*",
       "dist/renderer/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/better-sqlite3/{deps,src}/**"
     ],
     "asar": true,
     "asarUnpack": [
@@ -66,6 +69,9 @@
     },
     "dmg": {
       "title": "Life-Admin Radar"
-    }
-  }
+    },
+    "npmRebuild": false,
+    "publish": null
+  },
+  "author": "Pallav Mishra"
 }
