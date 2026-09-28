@@ -64,9 +64,9 @@ if (fs.existsSync(dbFile)) {
     const Database = require('better-sqlite3')
     const db = new Database(dbFile, { readonly: true, fileMustExist: true })
     const s = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map(r => [r.key, r.value]))
-    line(`  Radar DB: live pushes = ${s.kanbanLiveWrites || 0}, plist path setting = ${s.kanbanPlistPath || '(default)'}`)
+    line(`  Radar DB: live pushes = ${s.kanbanLiveWrites || 0}, plist path setting = ${s.kanbanPlistPath || '(default)'}, include subscriptions = ${s.kanbanIncludeSubscriptions === '1' ? 'ON' : 'off'}`)
     for (const l of db.prepare(`SELECT i.title, l.linked_how FROM kanban_links l JOIN life_items i ON i.id = l.item_id`).all()) line(`     linked: ${l.title} (${l.linked_how})`)
-    for (const q of db.prepare(`SELECT i.title, q.op, q.status, q.error FROM kanban_queue q JOIN life_items i ON i.id = q.item_id ORDER BY q.id DESC LIMIT 8`).all()) line(`     queue: ${q.title} ${q.op} ${q.status}${q.error ? ' — ' + q.error : ''}`)
+    for (const q of db.prepare(`SELECT i.title, i.kind, i.category, q.op, q.status, q.error FROM kanban_queue q JOIN life_items i ON i.id = q.item_id ORDER BY q.id DESC LIMIT 8`).all()) line(`     queue: ${q.title} [${q.kind}/${q.category}] ${q.op} ${q.status}${q.error ? ' — ' + q.error : ''}`)
     db.close()
   } catch (e) { line(`  (could not read Radar DB: ${e.message})`) }
 } else line(`  no Radar database at ${dbFile}`)

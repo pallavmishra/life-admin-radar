@@ -180,3 +180,26 @@ describe('subscriptions never go to the board (default)', () => {
     expect(t.sync.pending().map(p => p.title)).toContain('Netflix renewal')
   })
 })
+
+describe('stale queue entries are withdrawn', () => {
+  it('a queued item that becomes a subscription (or the setting is turned off) leaves the queue', () => {
+    const t = setup()
+    const c = h.clockAt('2026-09-28')
+    t.store.saveSettings({ kanbanIncludeSubscriptions: '1' })
+    const ac = t.store.listItems().find(i => i.title === 'AppleCare One')
+    t.store.updateItem(ac.id, { due_date: '2026-10-02' }, c)
+    t.sync.enqueueDue(c)
+    expect(t.sync.pending().map(p => p.title)).toContain('AppleCare One')
+    t.store.saveSettings({ kanbanIncludeSubscriptions: '0' })
+    t.sync.enqueueDue(c)
+    expect(t.sync.pending().map(p => p.title)).not.toContain('AppleCare One')
+    expect(t.sync.pending().map(p => p.title)).toContain('H-1B: I-94 expires')
+    // a plain item queued, then re-filed under Subscriptions
+    const x = t.store.createItem({ title: 'Warranty plan', category: 'household', due_date: '2026-10-05', reminders: [7] }, c)
+    t.sync.enqueueDue(c)
+    expect(t.sync.pending().map(p => p.title)).toContain('Warranty plan')
+    t.store.updateItem(x.id, { category: 'subscriptions' }, c)
+    t.sync.enqueueDue(c)
+    expect(t.sync.pending().map(p => p.title)).not.toContain('Warranty plan')
+  })
+})

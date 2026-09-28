@@ -80,6 +80,9 @@ function registerIpc(ipcMain, { store, engine, sync, clock, shell, afterChange, 
 
   // ── kanban ──
   handle('kanban:status', () => {
+    // Re-evaluate the queue first, so the screen never shows an entry that
+    // no longer qualifies (setting changed, item re-filed, date moved).
+    try { sync.enqueueDue(clock(), { auto: false }) } catch (_) {}
     const s = store.getSettings()
     return {
       path: sync.plistPath(), running: sync.isRunning(), pending: sync.pending(), history: sync.history(),

@@ -59,6 +59,15 @@ function createKanbanSync({ store, engine, notifier = null, isRunning, converter
         db.prepare(`UPDATE kanban_queue SET status = 'cancelled' WHERE item_id = ? AND op = 'upsert' AND status = 'pending'`).run(id)
         n += enqueue(id, 'complete', nowIso)
       }
+      // A queued add/update whose item no longer qualifies — it became a
+      // subscription, its category changed, a setting was turned off, its
+      // date moved out of the window — is withdrawn rather than pushed.
+      const candIds = new Set(cands.map(i => i.id))
+      const cancelStale = db.prepare(`UPDATE kanban_queue SET status = 'cancelled', error = 'no longer qualifies for the board' WHERE id = ?`)
+      for (const q of db.prepare(`SELECT q.id, q.item_id FROM kanban_queue q JOIN life_items i ON i.id = q.item_id
+        WHERE q.status = 'pending' AND q.op = 'upsert' AND i.status != 'done'`).all()) {
+        if (!candIds.has(q.item_id)) cancelStale.run(q.id)
+      }
       // Done before it was ever pushed → nothing to do on the board.
       db.prepare(`UPDATE kanban_queue SET status = 'cancelled' WHERE status = 'pending' AND op = 'upsert'
         AND item_id IN (SELECT id FROM life_items WHERE status = 'done')`).run()
