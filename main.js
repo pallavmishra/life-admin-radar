@@ -16,7 +16,7 @@ const { createKanbanSync } = require('./src/main/kanban/sync')
 const { isKanbanRunning } = require('./src/main/kanban/appRunning')
 const { createNotifier } = require('./src/main/notifier')
 const { makeClock } = require('./src/main/clock')
-const { seedItems } = require('./src/main/seed')
+const { seedItems, applySeedBatches } = require('./src/main/seed')
 const { registerIpc } = require('./src/main/ipc')
 
 const isDev = process.env.VITE_DEV === 'true'
@@ -106,6 +106,9 @@ app.whenReady().then(() => {
   })
 
   store.seedIfNeeded(seedItems(), clock())
+  for (const b of applySeedBatches(store, clock())) {
+    if (b.applied) log(`seed batch ${b.id}: added ${b.added.join(', ') || 'nothing'}${b.skipped.length ? `; skipped ${b.skipped.join(', ')}` : ''}`)
+  }
 
   const notifyRenderer = () => { if (mainWindow) mainWindow.webContents.send('radar:changed') }
   const tick = () => {

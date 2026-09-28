@@ -3,6 +3,7 @@ import Confirm from '../components/Confirm.jsx'
 import { money, formatDay, relative, diffDays } from '../util.js'
 
 const per = { monthly: 'mo', quarterly: 'qtr', yearly: 'yr' }
+const ordinal = (n) => `${n}${[, 'st', 'nd', 'rd'][n % 100 >> 3 ^ 1 && n % 10] || 'th'}`
 const monthly = (s) => s.cost_cents == null ? 0 : s.billing_cycle === 'yearly' ? s.cost_cents / 12 : s.billing_cycle === 'quarterly' ? s.cost_cents / 3 : s.cost_cents
 
 export default function Subscriptions({ today, openItem, refresh, toasts, version, openTemplates }) {
@@ -17,6 +18,7 @@ export default function Subscriptions({ today, openItem, refresh, toasts, versio
   const list = showDone ? subs : active
   const known = active.filter(s => s.subscription.cost_cents != null)
   const total = known.reduce((n, s) => n + monthly(s.subscription), 0)
+  const estimates = known.filter(s => s.subscription.cost_approx).length
   const autoRenewed = active.filter(s => s.decisions.some(d => d.decision === 'auto-renewed'))
 
   return (
@@ -24,7 +26,7 @@ export default function Subscriptions({ today, openItem, refresh, toasts, versio
       <header className="view-head">
         <div>
           <h1>Subscriptions</h1>
-          <p className="lede">{active.length} active · {money(Math.round(total))}/mo known{known.length < active.length ? ` (+${active.length - known.length} with unknown cost)` : ''}
+          <p className="lede">{active.length} active · {estimates ? '≈' : ''}{money(Math.round(total))}/mo known{estimates ? ` (${estimates} estimated)` : ''}{known.length < active.length ? ` (+${active.length - known.length} with unknown cost)` : ''}
             {autoRenewed.length ? ` · ${autoRenewed.length} renewed without a keep/cancel decision` : ''}</p>
         </div>
         <button onClick={openTemplates}>Add subscription…</button>
@@ -39,11 +41,11 @@ export default function Subscriptions({ today, openItem, refresh, toasts, versio
             return (
               <tr key={s.id} className={s.status === 'done' ? 'dim' : soon ? 'soon' : ''}>
                 <td><button className="link strong" onClick={() => openItem(s.id)}>{s.title}</button>{sub.via && <span className="muted small"> via {sub.via}</span>}</td>
-                <td>{sub.cost_cents == null ? <span className="muted">unknown</span> : `${money(sub.cost_cents)}/${per[sub.billing_cycle]}`}</td>
+                <td>{sub.cost_cents == null ? <span className="muted">unknown</span> : <span title={sub.cost_approx ? 'Amount varies — this is a typical bill' : undefined}>{money(sub.cost_cents, sub.cost_approx)}/{per[sub.billing_cycle]}</span>}</td>
                 <td>
                   <input type="date" className="compact" value={s.due_date || ''} aria-label={`Next renewal for ${s.title}`}
                     onChange={e => act(() => window.radar.updateItem(s.id, { due_date: e.target.value || null }), 'Renewal date saved')} />
-                  {s.due_date ? <div className="muted small">{relative(s.due_date, today)}</div> : <div className="muted small">set it to get the 7-day prompt</div>}
+                  {s.due_date ? <div className="muted small">{relative(s.due_date, today)}{sub.billing_day ? ` · on the ${ordinal(sub.billing_day)}` : ''}</div> : <div className="muted small">set it to get the 7-day prompt</div>}
                 </td>
                 <td>{sub.cancel_url ? <button className="link" onClick={() => setConfirm({ kind: 'open', s })}>Open…</button> : <span className="muted">—</span>}</td>
                 <td className="small">{last ? <><b>{last.decision}</b> <span className="muted">{last.decided_on}</span></> : <span className="muted">none yet</span>}</td>

@@ -65,7 +65,7 @@ export default function TemplatePicker({ meta, today, onClose, onCreated, toasts
                 <input ref={first} value={form.title} onChange={set('title')} required={pick.kind === 'nag' || pick.id === 'subscription'} />
               </label>
             )}
-            {ASK[pick.id].sub && (
+            {ASK[pick.id].sub && (<>
               <div className="field-grid three">
                 <label>Cost<input value={form.cost} onChange={set('cost')} placeholder="$18.99" inputMode="decimal" /></label>
                 <label>Cycle
@@ -75,7 +75,8 @@ export default function TemplatePicker({ meta, today, onClose, onCreated, toasts
                 </label>
                 <label>Cancel URL<input value={form.cancel_url} onChange={set('cancel_url')} placeholder="e.g. spotify.com/account" /></label>
               </div>
-            )}
+              <label className="check small"><input type="checkbox" checked={!!form.cost_approx} onChange={e => setForm(f => ({ ...f, cost_approx: e.target.checked }))} /> Amount varies (utilities) — store it as approximate</label>
+            </>)}
             {ASK[pick.id].date && (
               <label className="block">{pick.dateLabel}
                 <input ref={ASK[pick.id].title ? null : first} type="date" value={form.date} onChange={set('date')} required={!pick.dateOptional} />

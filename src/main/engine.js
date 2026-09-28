@@ -27,11 +27,17 @@ function readiness(checklist) {
   return `${done}/${checklist.length} ready`
 }
 
-function reminderMessage(item, checklist, today) {
+function amountLabel(sub) {
+  if (!sub || sub.cost_cents == null) return ''
+  return `${sub.cost_approx ? '~' : ''}$${(sub.cost_cents / 100).toFixed(2)}`
+}
+
+function reminderMessage(item, checklist, today, sub = null) {
   if (item.kind === 'subscription') {
+    const amt = amountLabel(sub)
     return {
       title: `${item.title} renews ${relativeLabel(item.due_date, today)}`,
-      body: `Keep or cancel? Renews ${formatDayKey(item.due_date)}.`,
+      body: `Keep or cancel? Renews ${formatDayKey(item.due_date)}${amt ? ` · ${amt}` : ''}.`,
     }
   }
   const n = diffDays(today, item.due_date)
@@ -82,7 +88,8 @@ function createEngine({ store, notifier = null, kanban = null, log = () => {} })
         // even if two ticks ever overlapped.
         if (!mark.run(nowIso, toDigest ? 'digest' : 'sent', f.reminder.id).changes) continue
         if (toDigest) continue
-        const msg = reminderMessage(f.item, checklistFor(f.item.id), today)
+        const sub = f.item.kind === 'subscription' ? store.raw.prepare('SELECT * FROM subscriptions WHERE item_id = ?').get(f.item.id) : null
+        const msg = reminderMessage(f.item, checklistFor(f.item.id), today, sub)
         insertLog.run('reminder', f.reminder.id, f.item.id, msg.title, msg.body, today, nowIso)
         out.push({ kind: 'reminder', itemId: f.item.id, reminderId: f.reminder.id, ...msg })
       }

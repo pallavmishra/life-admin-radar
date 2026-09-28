@@ -191,6 +191,15 @@ function SubscriptionFields({ item, meta, run, onCancel }) {
           <input defaultValue={s.via} key={`v${s.via}`} placeholder="e.g. Apple" onBlur={e => e.target.value !== s.via && save({ via: e.target.value })} />
         </label>
       </div>
+      <div className="field-grid">
+        <label className="check"><input type="checkbox" checked={!!s.cost_approx} onChange={e => save({ cost_approx: e.target.checked })} /> Amount varies (cost is a typical bill)</label>
+        {s.billing_cycle === 'monthly' && (
+          <label>Renews on day of month
+            <input className="tiny" defaultValue={s.billing_day || ''} key={`d${s.billing_day}`} placeholder="—" inputMode="numeric"
+              onBlur={e => String(e.target.value) !== String(s.billing_day || '') && save({ billing_day: e.target.value.trim() || null })} />
+          </label>
+        )}
+      </div>
       <label className="block">Cancel URL
         <input defaultValue={s.cancel_url} key={`u${s.cancel_url}`} placeholder="https://…" onBlur={e => e.target.value !== s.cancel_url && save({ cancel_url: e.target.value })} />
       </label>
@@ -199,7 +208,7 @@ function SubscriptionFields({ item, meta, run, onCancel }) {
           {item.decisions.slice(0, 5).map(d => <li key={d.id}><b>{d.decision}</b> {d.renewal_date ? `for ${d.renewal_date}` : ''} <span className="muted">· {d.decided_on}</span></li>)}
         </ul>
       )}
-      <p className="muted small">{s.cost_cents != null ? `${money(s.cost_cents)} per ${s.billing_cycle.replace('ly', '')}` : 'Cost unknown'}</p>
+      <p className="muted small">{s.cost_cents != null ? `${money(s.cost_cents, s.cost_approx)} per ${s.billing_cycle.replace('ly', '')}${s.cost_approx ? ' (varies)' : ''}` : 'Cost unknown'}</p>
       {item.status !== 'done' && (
         <div className="inline-form">
           <button disabled={!item.due_date} title={item.due_date ? 'Log "keep" and move the renewal date one billing cycle' : 'Set the renewal date first'}

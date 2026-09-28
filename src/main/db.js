@@ -15,7 +15,8 @@ const Database = require('better-sqlite3')
 const { checkText } = require('../shared/privacy')
 const { normalizeUrl, parseCents } = require('../shared/money')
 const { CATEGORY_IDS, KINDS, CHANNELS, BILLING_CYCLES } = require('../shared/constants')
-const { isDayKey, addMonths, compareKeys } = require('../shared/dates')
+const { isDayKey, addMonthsAnchored, compareKeys } = require('../shared/dates')
+const { score: titleScore } = require('./kanban/match')
 const { deriveStatus } = require('./status')
 const { rearmForNewDueDate } = require('./reminders')
 const { getTemplate } = require('../shared/templates')
@@ -64,7 +65,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   cost_cents INTEGER,
   billing_cycle TEXT NOT NULL DEFAULT 'monthly',
   cancel_url TEXT NOT NULL DEFAULT '',
-  via TEXT NOT NULL DEFAULT ''
+  via TEXT NOT NULL DEFAULT '',
+  cost_approx INTEGER NOT NULL DEFAULT 0,  -- 1 = the amount varies (utilities); cost_cents is a typical bill
+  billing_day INTEGER                      -- renews on this day of the month (1–31), or NULL
 );
 
 CREATE TABLE IF NOT EXISTS subscription_decisions (
@@ -141,7 +144,15 @@ function openDatabase(file) {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.exec(SCHEMA)
+  migrate(db)
   return createStore(db)
+}
+
+/** Additive migrations for databases created by earlier versions. */
+function migrate(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(subscriptions)').all().map(c => c.name))
+  if (!cols.has('cost_approx')) db.exec('ALTER TABLE subscriptions ADD COLUMN cost_approx INTEGER NOT NULL DEFAULT 0')
+  if (!cols.has('billing_day')) db.exec('ALTER TABLE subscriptions ADD COLUMN billing_day INTEGER')
 }
 
 function createStore(db) {
@@ -228,16 +239,20 @@ function createStore(db) {
     if (!s) return
     const cycle = s.billing_cycle || 'monthly'
     if (!BILLING_CYCLES.some(c => c.id === cycle)) throw new Error(`Unknown billing cycle: ${cycle}`)
-    // cost_cents arrives already in cents (templates/UI parse "$69.99" with
-    // shared/money.js); anything else is a programming error, said plainly.
+    // cost_cents arrives in cents; `cost` (what was typed, e.g. "$69.99")
+    // is parsed here. Anything unreadable says what it wants.
     const cost = 'cost' in s ? parseCents(s.cost)
       : s.cost_cents == null || s.cost_cents === '' ? null : Math.round(Number(s.cost_cents))
     if (cost != null && (!Number.isFinite(cost) || cost < 0)) throw new Error('Cost should be an amount like 69.99')
     const url = normalizeUrl(s.cancel_url)
-    db.prepare(`INSERT INTO subscriptions (item_id, cost_cents, billing_cycle, cancel_url, via) VALUES (?, ?, ?, ?, ?)
+    const approx = s.cost_approx ? 1 : 0
+    let day = s.billing_day == null || s.billing_day === '' ? null : Number(s.billing_day)
+    if (day != null && (!Number.isInteger(day) || day < 1 || day > 31)) throw new Error('Billing day should be a day of the month, 1–31')
+    if (cycle !== 'monthly') day = null
+    db.prepare(`INSERT INTO subscriptions (item_id, cost_cents, billing_cycle, cancel_url, via, cost_approx, billing_day) VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(item_id) DO UPDATE SET cost_cents=excluded.cost_cents, billing_cycle=excluded.billing_cycle,
-      cancel_url=excluded.cancel_url, via=excluded.via`)
-      .run(itemId, cost, cycle, checkText('cancel URL', url), checkText('via', String(s.via || '').trim()))
+      cancel_url=excluded.cancel_url, via=excluded.via, cost_approx=excluded.cost_approx, billing_day=excluded.billing_day`)
+      .run(itemId, cost, cycle, checkText('cancel URL', url), checkText('via', String(s.via || '').trim()), approx, day)
   }
 
   function createItem(draft, { today, nowIso }) {
@@ -401,7 +416,7 @@ function createStore(db) {
       if (decision === 'cancel') {
         db.prepare(`UPDATE life_items SET status='done', completed_on=?, updated_at=? WHERE id=?`).run(today, nowIso, itemId)
       } else if (isDayKey(item.due_date)) {
-        updateItem(itemId, { due_date: addMonths(item.due_date, cycleMonths(sub.billing_cycle)) }, { today, nowIso })
+        updateItem(itemId, { due_date: addMonthsAnchored(item.due_date, cycleMonths(sub.billing_cycle), sub.billing_day) }, { today, nowIso })
       }
       return getItem(itemId)
     })()
@@ -415,7 +430,7 @@ function createStore(db) {
   function rollSubscriptions({ today, nowIso }) {
     const rolled = []
     tx(() => {
-      const rows = db.prepare(`SELECT i.*, s.billing_cycle FROM life_items i JOIN subscriptions s ON s.item_id = i.id
+      const rows = db.prepare(`SELECT i.*, s.billing_cycle, s.billing_day FROM life_items i JOIN subscriptions s ON s.item_id = i.id
         WHERE i.kind = 'subscription' AND i.status != 'done' AND i.due_date IS NOT NULL`).all()
       for (const r of rows) {
         if (compareKeys(r.due_date, today) >= 0) continue
@@ -428,7 +443,7 @@ function createStore(db) {
             db.prepare(`INSERT INTO subscription_decisions (item_id, decided_on, renewal_date, decision, note)
               VALUES (?, ?, ?, 'auto-renewed', 'Renewed with no keep/cancel decision')`).run(r.id, today, due)
           }
-          due = addMonths(due, months)
+          due = addMonthsAnchored(due, months, r.billing_day)
         }
         updateItem(r.id, { due_date: due }, { today, nowIso })
         rolled.push({ id: r.id, from: r.due_date, to: due })
@@ -471,6 +486,33 @@ function createStore(db) {
     return true
   }
 
+  /**
+   * Later additions to the seed (e.g. the utilities batch). Each batch runs
+   * once, ever — guarded by a `seedBatch:<id>` setting — and skips any item
+   * already present: same title, or a close title match within the same
+   * category (so "Optimum" already typed in by hand is not duplicated).
+   * @returns {{ applied: boolean, added: string[], skipped: string[] }}
+   */
+  function applySeedBatch(id, items, ctx) {
+    const key = `seedBatch:${id}`
+    if (getSettings()[key] === '1') return { applied: false, added: [], skipped: [] }
+    const added = [], skipped = []
+    tx(() => {
+      const existing = db.prepare('SELECT id, title, category FROM life_items').all()
+      const norm = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+      for (const it of items) {
+        const dup = existing.find(e => norm(e.title) === norm(it.title) ||
+          (e.category === it.category && titleScore(e.title, it.title) >= 0.9))
+        if (dup) { skipped.push(`${it.title} (already have "${dup.title}")`); continue }
+        const created = createItem(it, ctx)
+        existing.push({ id: created.id, title: created.title, category: created.category })
+        added.push(created.title)
+      }
+      saveSettings({ [key]: '1' })
+    })()
+    return { applied: true, added, skipped }
+  }
+
   /** "Clear data" — previewed in the UI; this returns the counts first. */
   function countAll() {
     const c = (t) => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n
@@ -494,7 +536,7 @@ function createStore(db) {
     addChecklistItem, updateChecklistItem, deleteChecklistItem,
     decideSubscription, rollSubscriptions,
     listConsumables, addConsumable, setConsumableHave, deleteConsumable,
-    refreshStatuses, seedIfNeeded, countAll, clearAll,
+    refreshStatuses, seedIfNeeded, applySeedBatch, countAll, clearAll,
   }
 }
 

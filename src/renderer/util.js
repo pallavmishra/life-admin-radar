@@ -34,7 +34,7 @@ export function longToday(key) {
   return `${days[t.getUTCDay()]}, ${months[t.getUTCMonth()]} ${t.getUTCDate()}`
 }
 
-export const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
+export const money = (cents, approx = false) => (cents == null ? '—' : `${approx ? '~' : ''}$${(cents / 100).toFixed(2)}`)
 
 export function readiness(checklist = []) {
   if (!checklist.length) return null

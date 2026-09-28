@@ -110,6 +110,7 @@ function instantiate(id, input = {}) {
   if (t.kind === 'subscription') {
     draft.subscription = {
       cost_cents: parseCents(input.cost),
+      cost_approx: !!input.cost_approx,
       billing_cycle: input.billing_cycle || t.subscription.billing_cycle,
       cancel_url: input.cancel_url || '',
       via: input.via || '',

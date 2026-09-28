@@ -16,7 +16,7 @@ export default function ItemRow({ item, today, onOpen, onComplete, tone }) {
               : item.due_date
                 ? <span title={formatDay(item.due_date)}>{formatDay(item.due_date, { year: false })} · <b>{relative(item.due_date, today)}</b></span>
                 : <span className="muted">No date{isSub ? ' — add the renewal date' : ''}</span>}
-            {isSub && item.subscription && item.subscription.cost_cents != null && <span className="muted"> · {money(item.subscription.cost_cents)}/{item.subscription.billing_cycle === 'yearly' ? 'yr' : item.subscription.billing_cycle === 'quarterly' ? 'qtr' : 'mo'}</span>}
+            {isSub && item.subscription && item.subscription.cost_cents != null && <span className="muted"> · {money(item.subscription.cost_cents, item.subscription.cost_approx)}/{item.subscription.billing_cycle === 'yearly' ? 'yr' : item.subscription.billing_cycle === 'quarterly' ? 'qtr' : 'mo'}</span>}
           </span>
         </span>
         {r && <span className={`chip ${r.all ? 'ok' : ''}`} title="Documents ready">{r.done}/{r.total} ready</span>}

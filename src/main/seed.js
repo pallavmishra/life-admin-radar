@@ -4,7 +4,7 @@
  * exactly once — guarded by the `seeded` setting — so deleting a seed item
  * never makes it come back.
  */
-const { addDays } = require('../shared/dates')
+const { addDays, nextOnDay } = require('../shared/dates')
 
 const CLAIM_FILED = '2026-09-26'
 
@@ -62,4 +62,35 @@ function seedItems() {
   ]
 }
 
-module.exports = { seedItems, CLAIM_FILED }
+/**
+ * Later seed batches, applied once each on the next launch (db.applySeedBatch),
+ * so a database created before they existed gets them too. `today` fixes
+ * dates that depend on when the batch lands.
+ */
+function seedBatches(today) {
+  const sub = (title, { cost, approx = false, day = null, notes = '', via = '' }) => ({
+    title, category: 'subscriptions', kind: 'subscription', notes, template_id: 'subscription',
+    // A known billing day gives the next renewal; otherwise the date stays
+    // empty — a dateless subscription has no reminder until one is set.
+    due_date: day ? nextOnDay(today, day) : null,
+    reminders: [{ days_before: 7, channel: 'notification' }],
+    checklist: [],
+    subscription: { cost_cents: Math.round(cost * 100), cost_approx: approx, billing_cycle: 'monthly', billing_day: day, cancel_url: '', via },
+  })
+  return [
+    {
+      id: '2026-09-utilities',
+      items: [
+        sub('Optimum internet', { cost: 100, day: 29, via: 'Auto-pay', notes: 'Auto-pay. Renews around the 29th of each month.' }),
+        sub('JCP&L electric', { cost: 173.28, approx: true, notes: 'Amount varies month to month (~$173.28). Renewal date unknown — add it from a bill to get the 7-day reminder.' }),
+        sub('PSE&G gas', { cost: 12.20, approx: true, notes: 'Amount varies month to month (~$12.20). Renewal date unknown — add it from a bill to get the 7-day reminder.' }),
+      ],
+    },
+  ]
+}
+
+function applySeedBatches(store, ctx) {
+  return seedBatches(ctx.today).map(b => ({ id: b.id, ...store.applySeedBatch(b.id, b.items, ctx) }))
+}
+
+module.exports = { seedItems, seedBatches, applySeedBatches, CLAIM_FILED }

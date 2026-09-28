@@ -69,6 +69,24 @@ function addMonths(key, n) {
   return `${ny}-${pad(nm + 1)}-${pad(Math.min(d, last))}`
 }
 
+/**
+ * Add months but land on `anchorDay` (clamped to the month's length), so a
+ * bill due "on the 29th" is Jan 29 → Feb 28 → Mar 29, not → Mar 28 forever.
+ */
+function addMonthsAnchored(key, n, anchorDay) {
+  if (!anchorDay) return addMonths(key, n)
+  const moved = addMonths(key.slice(0, 8) + '01', n)
+  const [y, m] = moved.split('-').map(Number)
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return `${moved.slice(0, 8)}${pad(Math.min(Number(anchorDay), last))}`
+}
+
+/** The first date on or after `today` that falls on `anchorDay` of its month. */
+function nextOnDay(today, anchorDay) {
+  const thisMonth = addMonthsAnchored(today, 0, anchorDay)
+  return compareKeys(thisMonth, today) >= 0 ? thisMonth : addMonthsAnchored(today, 1, anchorDay)
+}
+
 function compareKeys(a, b) {
   return a < b ? -1 : a > b ? 1 : 0
 }
@@ -93,6 +111,6 @@ function relativeLabel(dueKey, todayKey) {
 }
 
 module.exports = {
-  isDayKey, assertDayKey, localDayKey, addDays, diffDays, addMonths,
+  isDayKey, assertDayKey, localDayKey, addDays, diffDays, addMonths, addMonthsAnchored, nextOnDay,
   compareKeys, formatDayKey, relativeLabel, DAY_MS,
 }

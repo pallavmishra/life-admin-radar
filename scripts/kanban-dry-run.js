@@ -19,7 +19,7 @@ const { openDatabase } = require('../src/main/db')
 const { createEngine } = require('../src/main/engine')
 const { createKanbanSync } = require('../src/main/kanban/sync')
 const { DEFAULT_PATH } = require('../src/main/kanban/plistFile')
-const { seedItems } = require('../src/main/seed')
+const { seedItems, applySeedBatches } = require('../src/main/seed')
 const { localDayKey } = require('../src/shared/dates')
 
 const args = process.argv.slice(2)
@@ -39,6 +39,7 @@ if (opt('--db')) fs.copyFileSync(opt('--db'), dbFile) // work on a copy of your 
 const store = openDatabase(dbFile)
 const engine = createEngine({ store })
 if (!opt('--db')) store.seedIfNeeded(seedItems(), clock)
+applySeedBatches(store, clock)
 const sync = createKanbanSync({ store, engine, isRunning: () => false })
 const pv = sync.preview(clock, { all: true, path: file })
 
