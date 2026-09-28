@@ -1,0 +1,71 @@
+{
+  "name": "life-admin-radar",
+  "productName": "Life-Admin Radar",
+  "version": "0.1.0",
+  "description": "Local-first deadline and renewal radar for one person's paperwork",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c cyan,yellow \"vite\" \"wait-on http://localhost:5174 && VITE_DEV=true electron .\"",
+    "build": "vite build && electron-builder --mac dmg zip",
+    "build:renderer": "vite build",
+    "test": "vitest run",
+    "test:headless": "node test/headless/run-all.js",
+    "test:all": "npm run test && npm run test:headless",
+    "kanban:dry-run": "node scripts/kanban-dry-run.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.3.1",
+    "vitest": "^4.1.10",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "app.pallavmishra.LifeAdminRadar",
+    "productName": "Life-Admin Radar",
+    "directories": {
+      "output": "dist/installers"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/main/**/*",
+      "src/shared/**/*",
+      "dist/renderer/**/*",
+      "node_modules/**/*"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "darkModeSupport": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Life-Admin Radar"
+    }
+  }
+}
